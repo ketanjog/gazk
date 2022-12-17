@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+setup.py
+gazk.egg-info/PKG-INFO
+gazk.egg-info/SOURCES.txt
+gazk.egg-info/dependency_links.txt
+gazk.egg-info/top_level.txt
