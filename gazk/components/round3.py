@@ -5,6 +5,7 @@ A component that simulates round 3 of the PLONK proving system.
 from typing import List
 import time
 import random
+import numpy as np
 
 # from py_ecc.bls import G2ProofOfPossession as bls12_381_G2ProofOfPossession
 
@@ -39,13 +40,30 @@ class Helpers:
         s3 = [random.randint(0, ub) for i in range(N)]
         z = [random.randint(0, ub) for i in range(N+3)]
         l1 = [random.randint(0, ub) for i in range(N)]
+
+        # Convert all to numpy arrays
+        a = np.array(a)
+        b = np.array(b)
+        c = np.array(c)
+        qm = np.array(qm)
+        ql = np.array(ql)
+        qr = np.array(qr)
+        qo = np.array(qo)
+        qc = np.array(qc)
+        s1 = np.array(s1)
+        s2 = np.array(s2)
+        s3 = np.array(s3)
+        z = np.array(z)
+        l1 = np.array(l1)
+
+
         return {"a": a, "b": b, "c": c, "qm": qm, "ql": ql, "qr": qr, "qo": qo, "qc": qc, "s1": s1, "s2": s2, "s3": s3, "z": z, "l1": l1}
 
 
 # Represent the 8 polynomial interpolations as vectors of coefficients
 # for a n circuits, a,b,c are of length n+2 and the rest are of length n for this simulation
 class Round3:
-    def __init__(self, N, vectors=None, constants=None):
+    def __init__(self, N=1, vectors=None, constants=None):
         self.N = N
         self.a = [1]*(self.N + 2)
         self.b = [1]*(self.N + 2)
@@ -128,29 +146,29 @@ class Round3:
         term2 = self.getTerm2()
         term3 = self.getTerm3()
         term4 = self.getTerm4()
-        return term1 + term2 - term3 + term4
+        return self.addManyPolynomials([term1, term2, -term3, term4])
 
     def multiplyPolynomials(self, poly1, poly2):
         # Multiply two polynomials
         # poly1 and poly2 are lists of coefficients
         # The result is a list of coefficients
-        print(f"{poly1}\n{poly2}")
+        # print(f"{poly1}\n{poly2}")
         time.sleep(.5)
         result = [0] * (len(poly1) + len(poly2) - 1)
         for i in range(len(poly1)):
             for j in range(len(poly2)):
-                print(f"{i}\n{j}")
+                # print(f"{i}\n{j}")
                 result[i + j] += poly1[i] * poly2[j]
-        return result
+        return np.array(result)
 
     def multiplyManyPolynomials(self, polys):
         # Multiply many polynomials
         # polys is a list of polynomials, each polynomial is a list of coefficients
         # The result is a list of coefficients
-        result = [0]
+        result = [1]
         for poly in polys:
             result = self.multiplyPolynomials(result, poly)
-        return result
+        return np.array(result)
 
     def addPolynomials(self, poly1, poly2):
         # Add two polynomials
@@ -161,7 +179,7 @@ class Round3:
             result[i] += poly1[i]
         for i in range(len(poly2)):
             result[i] += poly2[i]
-        return result
+        return np.array(result)
 
     def addManyPolynomials(self, polys):
         # Add many polynomials
@@ -170,7 +188,7 @@ class Round3:
         result = [0]
         for poly in polys:
             result = self.addPolynomials(result, poly)
-        return result
+        return np.array(result)
 
     def getTerm1(self):
         subterm1 = self.multiplyManyPolynomials([self.a, self.b, self.qm])
@@ -178,15 +196,16 @@ class Round3:
         subterm3 = self.multiplyManyPolynomials([self.b, self.qr])
         subterm4 = self.multiplyManyPolynomials([self.c, self.qo])
 
-        return subterm1 + subterm2 + subterm3 + subterm4
+
+        return self.addManyPolynomials([subterm1, subterm2, subterm3, subterm4])
 
     def getTerm2(self):
         subterm1 = self.addManyPolynomials(
-            [self.alpha*self.a, self.alpha*self.beta * [1, 1], [self.alpha*self.gamma]])
+            [self.alpha*self.a, [self.alpha*self.beta] * 2, [self.alpha*self.gamma]])
         subterm2 = self.addManyPolynomials(
-            [self.alpha*self.b, self.alpha*self.beta*self.k1*[1, 1], [self.alpha*self.gamma]])
+            [self.alpha*self.b, [self.alpha*self.beta*self.k1]*2, [self.alpha*self.gamma]])
         subterm3 = self.addManyPolynomials(
-            [self.alpha*self.c, self.alpha*self.beta*self.k2*[1, 1], [self.alpha*self.gamma]])
+            [self.alpha*self.c, [self.alpha*self.beta*self.k2]*2, [self.alpha*self.gamma]])
 
         return self.multiplyManyPolynomials([subterm1, subterm2, subterm3, self.z])
 
@@ -202,7 +221,7 @@ class Round3:
         return self.multiplyManyPolynomials([subterm1, subterm2, subterm3, self.z])
 
     def getTerm4(self):
-        subterm = self.addPolynomials([self.alpha**2*self.z, -self.alpha**2])
+        subterm = self.addPolynomials(self.alpha**2*self.z, [-self.alpha**2])
         return self.multiplyManyPolynomials([subterm, self.l1])
 
     def runRound3(self):
