@@ -134,12 +134,12 @@ class Round3:
         # Multiply two polynomials
         # poly1 and poly2 are lists of coefficients
         # The result is a list of coefficients
-        print(f"{poly1=}{poly2=}")
+        print(f"{poly1}\n{poly2}")
         time.sleep(.5)
         result = [0] * (len(poly1) + len(poly2) - 1)
         for i in range(len(poly1)):
             for j in range(len(poly2)):
-                print(f"{i=}{j=}")
+                print(f"{i}\n{j}")
                 result[i + j] += poly1[i] * poly2[j]
         return result
 
