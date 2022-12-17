@@ -16,17 +16,24 @@ class ParallelRound3:
         self.getSourceModule()
 
     def getSourceModule(self):
-        # write cuda kernel to multiply multiple polynomials
+        # write cuda kernel to multiply multiply polynomials
+        naive = r"""
 
-        #
-        naive = """
-        __global__ void naive(const int *A, const int *B, int *sums, const int v, uint n) {
+        __global__ void naive(const int *A, const int *B, int *sums, float *o, const int v, uint n) {
             int i = blockIdx.x * blockDim.x + threadIdx.x;
-            int j = blockIdx.y * blockDim.y + threadIdx.y;
+            int j = i % n;
+            int res = 0;
+            if (i < n*n) {
+                res = A[i/n] * B[j] * pow(v, n-i/n-1) * pow(v, n-j-1);
+                sums[i] = res;
 
-            if (i < n && j < n) {
-                sums[i + j] += A[i] * B[j];
+                // Debug. No macro check for performance.
+                //printf("A=%d, B=%d, v=%d, i=%d, j=%d, v1=%d, v2=%d\n", A[i/n], B[j], v, i, j, n-i/n-1, n-j-1);
             }
+
+            __syncthreads();
+
+            atomicAdd(o, res);
         }
         """
         self.module_naive_gpu = SourceModule(naive)
@@ -56,11 +63,13 @@ class ParallelRound3:
         # Fixme, change 32 bit to 64 bit for larger coefficients
         A = np.array(A, dtype=np.int32)
         B = np.array(B, dtype=np.int32)
-        Sums = np.zeros(A.size + B.size - 1, dtype=np.int32)
+        Sums = np.zeros(A.size * B.size, dtype=np.int32)
+        o = np.zeros(1, dtype=np.float32)
 
         # create device arrays
         A_gpu = cuda.mem_alloc(A.nbytes)
         B_gpu = cuda.mem_alloc(B.nbytes)
+        o_gpu = cuda.mem_alloc(o.nbytes)
 
         # sum size is 2*dim -1
         Sums_gpu = cuda.mem_alloc(Sums.nbytes)
@@ -69,12 +78,15 @@ class ParallelRound3:
         cuda.memcpy_htod(A_gpu, A)
         cuda.memcpy_htod(B_gpu, B)
         cuda.memcpy_htod(Sums_gpu, Sums)
+        cuda.memcpy_htod(o_gpu, o)
 
-        func(A_gpu, B_gpu, Sums_gpu, np.int32(1), np.int32(A.size), block=(16, 1, 1), grid=(1, 1, 1))
+        func(A_gpu, B_gpu, Sums_gpu, o_gpu, np.int32(2), np.int32(A.size), block=(16, 1, 1), grid=(1, 1, 1))
 
         cuda.memcpy_dtoh(Sums, Sums_gpu)
+        cuda.memcpy_dtoh(o, o_gpu)
 
         print(Sums)
+        print(o)
 
 
 
