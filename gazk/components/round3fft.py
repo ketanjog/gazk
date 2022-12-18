@@ -27,12 +27,12 @@ class Round3FFT():
     #     fft=r"""
     #     #include <cuComplex.h>
     #     #include <cufft.h>
-        
+
 
     #     __global__ void multiplyWithFFT(cuComplex *a, cuComplex *b, cuComplex *c, cufftHandle fftPlan, int n) {
     #         // Get the thread index
     #         int i = blockIdx.x * blockDim.x + threadIdx.x;
-            
+
     #         // Check if the thread index is within bounds
     #         if (i < n) {
     #             // Perform FFT on the input arrays
@@ -43,12 +43,12 @@ class Round3FFT():
     #             fb.y = b[i].y;
     #             cufftExecC2C(fftPlan, &fa, &fa, CUFFT_FORWARD);
     #             cufftExecC2C(fftPlan, &fb, &fb, CUFFT_FORWARD);
-                
+
     #             // Multiply the FFTs
     #             cuComplex product;
     #             product.x = fa.x * fb.x - fa.y * fb.y;
     #             product.y = fa.x * fb.y + fa.y * fb.x;
-                
+
     #             // Perform inverse FFT to get the element-wise product
     #             cufftExecC2C(fftPlan, &product, &product, CUFFT_INVERSE);
     #             c[i].x = product.x / n;
@@ -62,7 +62,7 @@ class Round3FFT():
 
     def fft(self, N):
         # Set the polynomials to be multiplied
-        
+
         poly1 = np.array([random.randint(0, 100) for i in range(N)], dtype=np.complex64)
         poly2 = np.array([random.randint(0, 100) for i in range(N)], dtype=np.complex64)
         print("Size of array is: " + str(len(poly1)))
@@ -82,7 +82,7 @@ class Round3FFT():
 
         # Execute the inverse FFT
         cu_fft.ifft(poly1_gpu, poly1_gpu, plan, True)
-        
+
 
         # Transfer the result back to the CPU and print it
         result = poly1_gpu.get()
@@ -91,9 +91,6 @@ class Round3FFT():
 
         return result, _time
 
-
-
-
 if __name__ == "__main__":
     N = 1000000
     block_dim = 1024
@@ -101,16 +98,8 @@ if __name__ == "__main__":
     start = time.time()
     round3 = Round3FFT(N, block_dim, grid_dim)
     end = time.time()
-    
+
     res, time = round3.fft(N)
     print("Time: ", (end-start)/1000)
     print(res[:20])
 
-
-
-
-
-            
-                
-
-                

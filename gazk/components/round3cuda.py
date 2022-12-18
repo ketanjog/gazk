@@ -18,7 +18,7 @@ class ParallelRound3:
         kernels = r"""
 
         // naive implementation of polynomial multiplication using atomic add
-        __global__ void polymult_naive(const int *A, const int *B, int *sums, double *o, const int v, uint n) {
+        __global__ void polymult_naive(const long *A, const long *B, double *sums, uint n) {
             int i = blockIdx.x * blockDim.x + threadIdx.x;
             int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -115,14 +115,13 @@ class ParallelRound3:
 
     def naive(self, A, B):
         # polynomial multiplication of A and B as numpy arrays
-        blockDim = (min(1024, len(A)), min(1024, len(B)), 1)
+        blockDim = (32, 32, 1)
         gridDim = (math.ceil(len(A)/1024), math.ceil(len(B)/1024), 1)
 
         start = cuda.Event()
         end = cuda.Event()
 
-        # func = self.module_naive_gpu.get_function("naive")
-        func = self.module_gpu.get_function("polymult_scan")
+        func = self.module_gpu.get_function("polymult_naive")
 
         # create local arrays
         # A = [2, 1, 6]
@@ -138,15 +137,13 @@ class ParallelRound3:
                 A = np.append(np.zeros(len_B - len_A), A)
 
         # Fixme, change 32 bit to 64 bit for larger coefficients
-        A = np.array(A, dtype=np.int32)
-        B = np.array(B, dtype=np.int32)
-        Sums = np.zeros(A.size * B.size, dtype=np.int32)
-        o = np.zeros(1, dtype=np.float64)
+        A = np.array(A, dtype=np.int64)
+        B = np.array(B, dtype=np.int64)
+        Sums = np.zeros(A.size * B.size, dtype=np.float64)
 
         # create device arrays
         A_gpu = cuda.mem_alloc(A.nbytes)
         B_gpu = cuda.mem_alloc(B.nbytes)
-        o_gpu = cuda.mem_alloc(o.nbytes)
 
         # sum size is 2*dim -1
         Sums_gpu = cuda.mem_alloc(Sums.nbytes)
@@ -155,8 +152,8 @@ class ParallelRound3:
         cuda.memcpy_htod(A_gpu, A)
         cuda.memcpy_htod(B_gpu, B)
         cuda.memcpy_htod(Sums_gpu, Sums)
-        cuda.memcpy_htod(o_gpu, o)
 
+        cuda.Context.synchronize()
         start.record()
         # func(A_gpu, B_gpu, Sums_gpu, o_gpu, np.int32(1), np.int32(A.size), block=blockDim, grid=gridDim)
         func(A_gpu, B_gpu, Sums_gpu, np.int32(A.size), block=blockDim, grid=gridDim)
@@ -164,10 +161,8 @@ class ParallelRound3:
         cuda.Context.synchronize()
 
         cuda.memcpy_dtoh(Sums, Sums_gpu)
-        cuda.memcpy_dtoh(o, o_gpu)
 
         print(Sums)
-        print(o[0])
 
         return Sums, end.time_since(start)/1000 # return in seconds
 
@@ -199,8 +194,8 @@ class ParallelRound3:
         Sums = np.zeros(A.size * B.size, dtype=np.int64)
         o = np.zeros(1, dtype=np.float64)
 
-        print(A)
-        print(B)
+        # print(A)
+        # print(B)
 
         total_time = 0
 
@@ -261,34 +256,25 @@ class ParallelRound3:
             start.record()
             h_phase3(results[i], results[i+1], np.int32(gridsizes[i]), block=self.scan_blockdim, grid=(gridsizes[i+1], 1, 1))
             end.record()
+            cuda.Context.synchronize()
             total_time += end.time_since(start)/1000
             cuda.Context.synchronize()
 
         o_dev = np.empty_like(Sums, dtype=np.int64)
         cuda.memcpy_dtoh(o_dev, results[0])
 
-        print(o_dev)
-        cnt = 0
+        #  extract the final sums
         final_sums = np.empty_like(o_dev, dtype=np.int64)
-        for i in range(2*len_A-1):
-            idx: int = (i*(i+1))//2 + 1
-            print(f"{i} : {idx}")
-            final_sums[i] = o_dev[i] - o_dev[idx-1]
-            cnt += i
+        for i in range(0, 2*len_A-1):
+            final_sums[i] = o_dev[i]
 
-
-        print(final_sums)
-        return final_sums, total_time
-
-        print(Sums)
-        print(o[0])
-        print(o_dev)
-
-        return Sums, end.time_since(start)/1000 # return in seconds
-
+        # print(final_sums)
+        return o_dev, total_time
 
 if __name__ == "__main__":
     pr = ParallelRound3()
-    # r = pr.naive([2,1,6], [3,2,5])
-    r = pr.polymult_with_scan([2,1,6], [3,2,5])
+    f = 10**4
+    s = pr.naive([10]*f, [5]*f)
+    r = pr.polymult_with_scan([1]*f, [5]*f)
     print(r)
+    print(s)
